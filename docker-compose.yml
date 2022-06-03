@@ -1,0 +1,100 @@
+version: "3"
+
+networks:
+  notes:
+
+services:
+  zookeeper:
+    image: docker.io/bitnami/zookeeper:3.8
+    restart: always
+    ports:
+      - "2181:2181"
+    volumes:
+      - "zookeeper_data:/bitnami"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    networks:
+      - notes
+
+  kafka:
+    image: docker.io/bitnami/kafka:3.2
+    restart: always
+    ports:
+      - "9092:9092"
+    volumes:
+      - "kafka_data:/bitnami"
+    environment:
+      ALLOW_PLAINTEXT_LISTENER: yes
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on:
+      - zookeeper
+    networks:
+      - notes
+
+  postgres:
+    image: postgres:14.3-alpine
+    restart: always
+    environment:
+      - POSTGRES_PASSWORD=63IMFFLBy4cx449
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    networks:
+      - notes
+
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_USER=noteman
+      - PG_PASSWORD=noteman
+      - PG_DATABASE=auth
+    ports:
+      - "3000:3000"
+    networks:
+      - notes
+
+  notes-service:
+    build:
+      context: ./notes-service
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_USER=noteman
+      - PG_PASSWORD=noteman
+      - PG_DATABASE=notes
+    ports:
+      - "3001:3001"
+    networks:
+      - notes
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - EMAIL_HOST=smtp.yandex.ru
+      - EMAIL_USER=notify@t1me.ru
+      - EMAIL_PASSWORD=70nRR3UQEiwg7ON
+    networks:
+      - notes
+
+
+volumes:
+  zookeeper_data:
+    driver: local
+  kafka_data:
+    driver: local
+  postgres_data:
+    driver: local
